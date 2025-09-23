@@ -50,8 +50,6 @@ class Control : public CanvasItem {
 #endif //TOOLS_ENABLED
 
 public:
-	static constexpr AncestralClass static_ancestral_class = AncestralClass::CONTROL;
-
 	enum Anchor {
 		ANCHOR_BEGIN = 0,
 		ANCHOR_END = 1

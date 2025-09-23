@@ -140,8 +140,6 @@ protected:
 	}
 
 public:
-	static constexpr AncestralClass static_ancestral_class = AncestralClass::SCRIPT;
-
 	virtual void reload_from_file() override;
 
 	virtual bool can_instantiate() const = 0;
