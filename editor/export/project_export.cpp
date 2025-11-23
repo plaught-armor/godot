@@ -50,6 +50,7 @@
 #include "scene/gui/menu_button.h"
 #include "scene/gui/option_button.h"
 #include "scene/gui/popup_menu.h"
+#include "scene/gui/rich_text_label.h"
 #include "scene/gui/split_container.h"
 #include "scene/gui/tab_container.h"
 #include "scene/gui/texture_rect.h"
@@ -533,8 +534,31 @@ void ProjectExportDialog::_name_changed(const String &p_string) {
 	Ref<EditorExportPreset> current = get_current_preset();
 	ERR_FAIL_COND(current.is_null());
 
-	current->set_name(p_string);
+	int current_index = presets->get_current();
+
+	String trimmed_name = p_string.strip_edges();
+	if (trimmed_name.is_empty()) {
+		ERR_PRINT_ED("Invalid preset name: preset name cannot be empty!");
+		name->set_text(current->get_name());
+		return;
+	}
+
+	if (EditorExport::get_singleton()->has_preset_with_name(trimmed_name, current_index)) {
+		ERR_PRINT_ED(vformat("Invalid preset name: a preset with the name '%s' already exists!", trimmed_name));
+		name->set_text(current->get_name());
+		return;
+	}
+
+	current->set_name(trimmed_name);
 	_update_presets();
+}
+
+void ProjectExportDialog::_name_editing_finished() {
+	if (updating) {
+		return;
+	}
+
+	_name_changed(name->get_text());
 }
 
 void ProjectExportDialog::set_export_path(const String &p_value) {
@@ -1445,6 +1469,7 @@ void ProjectExportDialog::_bind_methods() {
 
 ProjectExportDialog::ProjectExportDialog() {
 	set_title(TTR("Export"));
+	set_flag(FLAG_MAXIMIZE_DISABLED, false);
 	set_clamp_to_embedder(true);
 
 	VBoxContainer *main_vb = memnew(VBoxContainer);
@@ -1461,6 +1486,7 @@ ProjectExportDialog::ProjectExportDialog() {
 
 	VBoxContainer *preset_vb = memnew(VBoxContainer);
 	preset_vb->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	preset_vb->set_stretch_ratio(0.35);
 	hbox->add_child(preset_vb);
 
 	Label *l = memnew(Label(TTR("Presets")));
@@ -1503,7 +1529,8 @@ ProjectExportDialog::ProjectExportDialog() {
 
 	name = memnew(LineEdit);
 	settings_vb->add_margin_child(TTR("Name:"), name);
-	name->connect(SceneStringName(text_changed), callable_mp(this, &ProjectExportDialog::_name_changed));
+	name->connect(SceneStringName(text_submitted), callable_mp(this, &ProjectExportDialog::_name_changed));
+	name->connect(SceneStringName(focus_exited), callable_mp(this, &ProjectExportDialog::_name_editing_finished));
 
 	runnable = memnew(CheckButton);
 	runnable->set_text(TTR("Runnable"));
