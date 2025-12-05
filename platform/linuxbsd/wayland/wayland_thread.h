@@ -45,6 +45,7 @@
 #ifdef GLES3_ENABLED
 #include <wayland-egl-core.h>
 #endif
+#include <xkbcommon/xkbcommon-compose.h>
 #include <xkbcommon/xkbcommon.h>
 #endif // SOWRAP_ENABLED
 
@@ -469,6 +470,8 @@ public:
 		struct xkb_context *xkb_context = nullptr;
 		struct xkb_keymap *xkb_keymap = nullptr;
 		struct xkb_state *xkb_state = nullptr;
+		struct xkb_compose_state *xkb_compose_state = nullptr;
+		struct xkb_compose_table *xkb_compose_table = nullptr;
 
 		const char *keymap_buffer = nullptr;
 		uint32_t keymap_buffer_size = 0;
@@ -1033,6 +1036,8 @@ private:
 	static void _seat_state_set_current(WaylandThread::SeatState &p_ss);
 	static Ref<InputEventKey> _seat_state_get_key_event(SeatState *p_ss, xkb_keycode_t p_keycode, bool p_pressed);
 	static Ref<InputEventKey> _seat_state_get_unstuck_key_event(SeatState *p_ss, xkb_keycode_t p_keycode, bool p_pressed, Key p_key);
+
+	static void _seat_state_handle_xkb_keycode(SeatState *p_ss, xkb_keycode_t p_xkb_keycode, bool p_pressed, bool p_echo = false);
 
 	static void _wayland_state_update_cursor();
 

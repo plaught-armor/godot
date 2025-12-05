@@ -3211,11 +3211,6 @@ int String::rfindn(const String &p_str, int p_from) const {
 		return -1; // Still out of bounds
 	}
 
-	if (str_len == 1) {
-		// Optimize with single-char implementation.
-		return span().rfind(p_str[0], p_from);
-	}
-
 	const char32_t *src = get_data();
 	const char32_t *str = p_str.get_data();
 
@@ -5267,7 +5262,11 @@ String String::sprintf(const Span<Variant> &values, bool *error) const {
 					// Get basic number.
 					String str;
 					if (!as_unsigned) {
-						str = String::num_int64(Math::abs(value), base, capitalize);
+						if (value == INT64_MIN) { // INT64_MIN can't be represented as positive value.
+							str = String::num_int64(value, base, capitalize).trim_prefix("-");
+						} else {
+							str = String::num_int64(Math::abs(value), base, capitalize);
+						}
 					} else {
 						uint64_t uvalue = *((uint64_t *)&value);
 						// In unsigned hex, if the value fits in 32 bits, trim it down to that.
