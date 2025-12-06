@@ -352,7 +352,13 @@ void ViewportRotationControl::_draw_axis(const Axis2D &p_axis) {
 	const Color axis_color = axis_colors[direction];
 	const double min_alpha = 0.35;
 	const double alpha = focused ? 1.0 : Math::remap((p_axis.z_axis + 1.0) / 2.0, 0, 0.5, min_alpha, 1.0);
-	const Color c = focused ? Color(axis_color.lightened(0.75), 1.0) : Color(axis_color, alpha);
+	const Color c = focused ? Color(axis_color.lightened(0.25), 1.0) : Color(axis_color, alpha);
+
+	// Highlight positive axis text when hovered.
+	const Color c_positive_axis = focused ? Color(1.0, 1.0, 1.0, alpha) : Color(0.0, 0.0, 0.0, alpha * 0.6);
+
+	// Highlight negative axis text when hovered, but hide when not focused.
+	const Color c_negative_axis = focused ? Color(1.0, 1.0, 1.0, alpha) : Color(axis_color, 0);
 
 	if (positive) {
 		// Draw axis lines for the positive axes.
@@ -370,11 +376,22 @@ void ViewportRotationControl::_draw_axis(const Axis2D &p_axis) {
 		const int font_size = get_theme_font_size(SNAME("rotation_control_size"), EditorStringName(EditorFonts));
 		const Size2 char_size = font->get_char_size(axis_name[0], font_size);
 		const Vector2 char_offset = Vector2(-char_size.width / 2.0, char_size.height * 0.25);
-		draw_char(font, p_axis.screen_point + char_offset, axis_name, font_size, Color(0.0, 0.0, 0.0, alpha * 0.6));
+		draw_char(font, p_axis.screen_point + char_offset, axis_name, font_size, c_positive_axis);
 	} else {
 		// Draw an outline around the negative axes.
 		draw_circle(p_axis.screen_point, AXIS_CIRCLE_RADIUS, c, true, -1.0, true);
 		draw_circle(p_axis.screen_point, AXIS_CIRCLE_RADIUS * 0.8, c.darkened(0.4), true, -1.0, true);
+
+		// Draw the text for the negative axes.
+		const String axis_name = direction == 0 ? "-X" : (direction == 1 ? "-Y" : "-Z");
+		const Ref<Font> &font = get_theme_font(SNAME("rotation_control"), EditorStringName(EditorFonts));
+		const int font_size = get_theme_font_size(SNAME("rotation_control_size"), EditorStringName(EditorFonts));
+		const Size2 string_size = font->get_string_size(axis_name, HORIZONTAL_ALIGNMENT_LEFT, -1.0f, font_size);
+		const float font_ascent = font->get_ascent(font_size);
+		const float font_descent = font->get_descent(font_size);
+		const float string_height = font_ascent + font_descent;
+		const Vector2 offset(-string_size.width / 2.0, string_height * 0.25);
+		draw_string(font, p_axis.screen_point + offset, axis_name, HORIZONTAL_ALIGNMENT_LEFT, -1.0f, font_size, c_negative_axis);
 	}
 }
 
@@ -497,7 +514,7 @@ void ViewportRotationControl::gui_input(const Ref<InputEvent> &p_event) {
 
 	const Ref<InputEventScreenDrag> screen_drag = p_event;
 	if (screen_drag.is_valid()) {
-		_process_drag(screen_drag, screen_drag->get_index(), screen_drag->get_position(), screen_drag->get_relative());
+		_process_drag(nullptr, screen_drag->get_index(), screen_drag->get_position(), screen_drag->get_relative());
 	}
 }
 
@@ -3222,11 +3239,11 @@ void Node3DEditorViewport::_notification(int p_what) {
 						break;
 					case SupportedRenderingMethods::FORWARD_PLUS_MOBILE:
 						disabled = OS::get_singleton()->get_current_rendering_method() == "gl_compatibility";
-						disabled_tooltip = TTR("This debug draw mode is not supported when using the Compatibility rendering method.");
+						disabled_tooltip = TTR("This debug draw mode is only supported when using the Forward+ or Mobile renderer.");
 						break;
 					case SupportedRenderingMethods::FORWARD_PLUS:
 						disabled = OS::get_singleton()->get_current_rendering_method() == "gl_compatibility" || OS::get_singleton()->get_current_rendering_method() == "mobile";
-						disabled_tooltip = TTR("This debug draw mode is not supported when using the Mobile or Compatibility rendering methods.");
+						disabled_tooltip = TTR("This debug draw mode is only supported when using the Forward+ renderer.");
 						break;
 				}
 
@@ -6284,7 +6301,7 @@ Node3DEditorViewport::Node3DEditorViewport(Node3DEditor *p_spatial_editor, int p
 	locked_label->hide();
 
 	zoom_limit_label = memnew(Label);
-	zoom_limit_label->set_text(TTRC("To zoom further, change the camera's clipping planes (View -> Settings...)"));
+	zoom_limit_label->set_text(TTRC(U"To zoom further, change the camera's clipping planes (View → Settings...)"));
 	zoom_limit_label->set_name("ZoomLimitMessageLabel");
 	zoom_limit_label->add_theme_color_override(SceneStringName(font_color), Color(1, 1, 1, 1));
 	zoom_limit_label->hide();
@@ -7353,6 +7370,12 @@ void Node3DEditor::_menu_item_pressed(int p_option) {
 		case MENU_TOOL_SCALE:
 		case MENU_TOOL_TRANSFORM:
 		case MENU_TOOL_LIST_SELECT: {
+			for (uint32_t i = 0; i < VIEWPORTS_COUNT; i++) {
+				if (viewports[i]->_edit.mode != Node3DEditorViewport::TRANSFORM_NONE) {
+					viewports[i]->commit_transform();
+				}
+			}
+
 			for (int i = 0; i < TOOL_MAX; i++) {
 				tool_button[i]->set_pressed(i == p_option);
 			}
@@ -8865,9 +8888,9 @@ void Node3DEditor::_update_theme() {
 	sun_title->add_theme_font_override(SceneStringName(font), get_theme_font(SNAME("title_font"), SNAME("Window")));
 	environ_title->add_theme_font_override(SceneStringName(font), get_theme_font(SNAME("title_font"), SNAME("Window")));
 
-	sun_color->set_custom_minimum_size(Size2(0, get_theme_constant(SNAME("color_picker_button_height"), EditorStringName(Editor))));
-	environ_sky_color->set_custom_minimum_size(Size2(0, get_theme_constant(SNAME("color_picker_button_height"), EditorStringName(Editor))));
-	environ_ground_color->set_custom_minimum_size(Size2(0, get_theme_constant(SNAME("color_picker_button_height"), EditorStringName(Editor))));
+	sun_color->set_custom_minimum_size(Size2(0, get_theme_constant(SNAME("inspector_property_height"), EditorStringName(Editor))));
+	environ_sky_color->set_custom_minimum_size(Size2(0, get_theme_constant(SNAME("inspector_property_height"), EditorStringName(Editor))));
+	environ_ground_color->set_custom_minimum_size(Size2(0, get_theme_constant(SNAME("inspector_property_height"), EditorStringName(Editor))));
 
 	context_toolbar_panel->add_theme_style_override(SceneStringName(panel), get_theme_stylebox(SNAME("ContextualToolbar"), EditorStringName(EditorStyles)));
 }
@@ -8876,10 +8899,10 @@ void Node3DEditor::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_TRANSLATION_CHANGED: {
 			tool_button[TOOL_MODE_SELECT]->set_tooltip_text(TTR("Alt+RMB: Show list of all nodes at position clicked, including locked.") + "\n" + TTR("(Available in all modes.)"));
-			tool_button[TOOL_MODE_TRANSFORM]->set_tooltip_text(keycode_get_string((Key)KeyModifierMask::CMD_OR_CTRL) + TTR("Drag: Rotate selected node around pivot.") + "\n" + TTR("Alt+RMB: Show list of all nodes at position clicked, including locked.") + "\n" + TTR("(Available in all modes.)"));
-			tool_button[TOOL_MODE_MOVE]->set_tooltip_text(keycode_get_string((Key)KeyModifierMask::CMD_OR_CTRL) + TTR("Drag: Use snap.") + "\n" + TTR("Alt+RMB: Show list of all nodes at position clicked, including locked."));
-			tool_button[TOOL_MODE_ROTATE]->set_tooltip_text(keycode_get_string((Key)KeyModifierMask::CMD_OR_CTRL) + TTR("Drag: Use snap.") + "\n" + TTR("Alt+RMB: Show list of all nodes at position clicked, including locked."));
-			tool_button[TOOL_MODE_SCALE]->set_tooltip_text(keycode_get_string((Key)KeyModifierMask::CMD_OR_CTRL) + TTR("Drag: Use snap.") + "\n" + TTR("Alt+RMB: Show list of all nodes at position clicked, including locked."));
+			tool_button[TOOL_MODE_TRANSFORM]->set_tooltip_text(vformat(TTR("%s+Drag: Rotate selected node around pivot."), keycode_get_string((Key)KeyModifierMask::CMD_OR_CTRL)) + "\n" + TTR("Alt+RMB: Show list of all nodes at position clicked, including locked.") + "\n" + TTR("(Available in all modes.)"));
+			tool_button[TOOL_MODE_MOVE]->set_tooltip_text(vformat(TTR("%s+Drag: Use snap."), keycode_get_string((Key)KeyModifierMask::CMD_OR_CTRL)) + "\n" + TTR("Alt+RMB: Show list of all nodes at position clicked, including locked."));
+			tool_button[TOOL_MODE_ROTATE]->set_tooltip_text(vformat(TTR("%s+Drag: Use snap."), keycode_get_string((Key)KeyModifierMask::CMD_OR_CTRL)) + "\n" + TTR("Alt+RMB: Show list of all nodes at position clicked, including locked."));
+			tool_button[TOOL_MODE_SCALE]->set_tooltip_text(vformat(TTR("%s+Drag: Use snap."), keycode_get_string((Key)KeyModifierMask::CMD_OR_CTRL)) + "\n" + TTR("Alt+RMB: Show list of all nodes at position clicked, including locked."));
 			_update_gizmos_menu();
 		} break;
 
